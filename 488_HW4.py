@@ -184,40 +184,28 @@ def iris_classification():
     target_names = iris.target_names
 
     test_sizes = [.1, .2, .3, .4, .5]
-    models = []
-    models.append(('KNN', KNeighborsClassifier()))
-    models.append(('SVM-Poly', SVC(gamma='auto',kernel='poly')))
-    models.append(('SVM-RBF', SVC(gamma='auto',kernel='rbf')))
-    models.append(('NB', GaussianNB()))
-    # Train and test without dimensionality reduction
-    for name, model in models:
+    
+    for test_size in test_sizes:
+        X_train, X_validation, Y_train, Y_validation = train_test_split(X, y, test_size=test_size,random_state=1,shuffle=True)
+        models = []
+        models.append(('KNN', KNeighborsClassifier()))
+        models.append(('SVM-Poly', SVC(gamma='auto',kernel='poly')))
+        models.append(('SVM-RBF', SVC(gamma='auto',kernel='rbf')))
+        models.append(('NB', GaussianNB()))
         names = []
         results = []
-        for test_size in test_sizes:
-            X_train, X_validation, Y_train, Y_validation = train_test_split(X, y, test_size=test_size,random_state=1,shuffle=True)
+        scores = []
+        test_accuracies = []
+        for name, model in models:
+            model.fit(X_train, Y_train)
+            print("accuracy:", model.score(X_validation, Y_validation))
+            test_accuracies.append(model.score(X_validation, Y_validation))
+
             kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
             cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
+            print(cv_results.)
             results.append(cv_results)
             names.append(name)
-        plt.boxplot(results, labels=test_sizes)
-        plt.title("Algorithm Comparison on Iris dataset, Model = " + str(name))
-        plt.show()
-    # Run PCA dimensionality reduction
-    pca = PCA(n_components=2)
-    X_r = pca.fit(X).transform(X)
-    # Train and test models
-    for name, model in models:
-        names = []
-        results = []
-        for test_size in test_sizes:
-            X_train, X_validation, Y_train, Y_validation = train_test_split(X_r, y, test_size=test_size,random_state=1,shuffle=True)
-            kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
-            cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
-            results.append(cv_results)
-            names.append(name)
-        plt.boxplot(results, labels=test_sizes)
-        plt.title("Algorithm Comparison on Iris dataset, Model = " + str(name))
-        plt.show()
 
 
 def main():
