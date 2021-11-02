@@ -9,7 +9,10 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import plot_confusion_matrix
+from sklearn.pipeline import Pipeline
 
 
 def pines_analysis(R_filepath, display=False):
@@ -230,30 +233,61 @@ def pines_classification(R_filepath, run_pca=False):
     gth_mat = {i:j for i, j in gth_mat.items() if i[0] != "_"}
     gt = pd.DataFrame({i: pd.Series(j[0]) for i, j in gth_mat.items()})
 
+    if run_pca:
+        #data_file = open("pca_pines_classification.txt", "w")
+        pca = PCA(n_components=10)
+        principleComponents = pca.fit_transform(X)
+        x1 = X.transpose()
+        X = np.matmul(x1, principleComponents)
+        #X = X.transpose()
+        print("X:", principleComponents.shape)
+        print("gth:", gth.shape)
+        X = principleComponents
+        print("Running with dimensionality reduction")
+    else:
+        #data_file = open("pines_classification.txt", "w")
+        print("X:", X.shape)
+        print("gth:", gth.shape)
+        print("Running without dimensionality reduction")
     plot_data = {}
-    test_sizes = [.1, .2, .3, .4, .5]
+    test_sizes = [.5, .4, .3, .2, .1]
+    test_sizes = [.3]
     for test_size in test_sizes:
         X_train, X_validation, Y_train, Y_validation = train_test_split(X, gth, test_size=test_size,
                                                                         random_state=1, shuffle=True)
-        models = [('KNN', KNeighborsClassifier()), ('SVM-Poly', SVC(gamma='auto', kernel='poly')),
-                  ('SVM-RBF', SVC(gamma='auto', kernel='rbf')), ('NB', GaussianNB())]
+        models = [('NB', GaussianNB()), ('KNN', KNeighborsClassifier()), ('SVM-Poly', SVC(gamma='auto', kernel='poly', cache_size=5200000)),
+                  ('SVM-RBF', SVC(gamma='auto', kernel='rbf', cache_size=5200000))]
+        #models = [('KNN', KNeighborsClassifier()), ('NB', GaussianNB())]
         names = []
         classification_accuracy = []
         training_accuracy = []
         for name, model in models:
-            print("Starting model", name)
-            model.fit(X_train, Y_train)
-            classification_score = model.score(X_validation, Y_validation)
+            pipeline = Pipeline([("scaler", MinMaxScaler()), ("classifier", model)])
+            pipeline.fit(X_train, Y_train)
+            disp = plot_confusion_matrix(pipeline, X_validation, Y_validation, cmap=plt.cm.Blues)
+            true_positive = disp.confusion_matrix[1][1]
+            false_negative = disp.confusion_matrix[1][0]
+            true_negative = disp.confusion_matrix[0][0]
+            false_positive = disp.confusion_matrix[0][1]
+            sensitivity = true_positive / (true_positive + false_negative)
+            specificity = true_negative / (true_negative + false_positive)
+            classification_score = pipeline.score(X_validation, Y_validation)
             classification_accuracy.append(classification_score*100)
 
-            kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
-            cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
-            training_accuracy.append(cv_results.mean()*100)
-            names.append(name)
-            print(name, "finished training")
-            print("Classification accuracy:", classification_score*100)
-            print("Training accuracy:", cv_results.mean()*100)
+            #kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
+            #cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
+            #training_accuracy.append(cv_results.mean()*100)
+            #names.append(name)
+
+            #data_line = "test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " + str(cv_results.mean()*100) + " classification accuracy: " + str(classification_score*100) 
+            #data_line += " sensitivity: " + str(sensitivity) + " specificity: " + str(specificity) + "\n"
+            data_line = "test size: " + str(test_size) + " model: " + str(name) +  " classification accuracy: " + str(classification_score*100) 
+            data_line += " sensitivity: " + str(sensitivity) + " specificity: " + str(specificity) + "\n"
+            
+            print(data_line)
+            #data_file.writelines("test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " + str(cv_results.mean()*100) + " classification accuracy: " + str(classification_score*100) + "\n")
         plot_data[test_size] = [np.mean(training_accuracy), np.mean(classification_accuracy)]
+    #data_file.close()
     print("plot_data:", plot_data)
     test_sizes = [x*100 for x in test_sizes]
     training_accuracies = [plot_data[x][0] for x in plot_data]
@@ -283,3 +317,65 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+'''
+#test size: 0.5 model: KNN training accuracy: 75.14261268464217 classification accuracy: 71.89194330828498 sensitivity: 0.5714285714285714 specificity: 0.9997753313862053
+
+#test size: 0.5 model: NB training accuracy: 31.097994667399863 classification accuracy: 30.590697231998476 sensitivity: 1.0 specificity: 0.9340909090909091
+
+#test size: 0.4 model: KNN training accuracy: 76.09183087404533 classification accuracy: 72.94887039239 sensitivity: 0.5555555555555556 specificity: 0.9994410285075461
+
+#test size: 0.4 model: NB training accuracy: 30.84422847562684 classification accuracy: 30.071343638525565 sensitivity: 1.0 specificity: 0.9290030211480362
+
+#test size: 0.3 model: KNN training accuracy: 76.4899377087459 classification accuracy: 72.98668357641091 sensitivity: 0.75 specificity: 0.9996290801186943
+
+#test size: 0.3 model: NB training accuracy: 30.47476760854787 classification accuracy: 30.183893468611288 sensitivity: 1.0 specificity: 0.9306122448979591
+
+#test size: 0.2 model: KNN training accuracy: 77.06896551724137 classification accuracy: 73.36504161712247 sensitivity: 0.7142857142857143 specificity: 0.9994419642857143
+
+#test size: 0.2 model: NB training accuracy: 30.06539833531511 classification accuracy: 30.10701545778835 sensitivity: 1.0 specificity: 0.946843853820598
+
+#test size: 0.1 model: KNN training accuracy: 77.21168117991175 classification accuracy: 73.22872087494055 sensitivity: 0.5 specificity: 0.9967141292442497
+
+#test size: 0.1 model: NB training accuracy: 30.165969762862847 classification accuracy: 30.147408464098906 sensitivity: 1.0 specificity: 0.9254658385093167
+
+test size: 0.5 model: NB classification accuracy: 64.24426900028536 sensitivity: 0.9545454545454546 specificity: 0.9977814753189129
+
+test size: 0.5 model: KNN classification accuracy: 69.39979073528013 sensitivity: 0.5 specificity: 1.0
+
+test size: 0.5 model: SVM-Poly classification accuracy: 51.5266812517835 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.5 model: SVM-RBF classification accuracy: 59.18386759250451 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.4 model: NB classification accuracy: 64.29250891795482 sensitivity: 0.9444444444444444 specificity: 0.9986216402481047
+
+test size: 0.4 model: KNN classification accuracy: 69.80975029726515 sensitivity: 0.5555555555555556 specificity: 0.9997138769670959
+
+test size: 0.4 model: SVM-Poly classification accuracy: 51.73602853745541 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.4 model: SVM-RBF classification accuracy: 59.29845422116527 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.3 model: NB classification accuracy: 64.61636017755231 sensitivity: 0.9090909090909091 specificity: 0.9986232216613126
+
+test size: 0.3 model: KNN classification accuracy: 70.57704502219404 sensitivity: 0.7777777777777778 specificity: 0.9996204933586338
+
+test size: 0.3 model: SVM-Poly classification accuracy: 51.8706404565631 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.3 model: SVM-RBF classification accuracy: 59.84464172479391 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.2 model: NB classification accuracy: 64.13793103448275 sensitivity: 0.8888888888888888 specificity: 1.0
+
+test size: 0.2 model: KNN classification accuracy: 71.70035671819262 sensitivity: 0.75 specificity: 1.0
+
+test size: 0.2 model: SVM-Poly classification accuracy: 51.7717003567182 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.2 model: SVM-RBF classification accuracy: 59.80975029726516 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.1 model: NB classification accuracy: 64.76462196861627 sensitivity: 0.8 specificity: 1.0
+
+test size: 0.1 model: KNN classification accuracy: 72.42035187826914 sensitivity: 0.6 specificity: 1.0
+
+test size: 0.1 model: SVM-Poly classification accuracy: 52.543984783642415 sensitivity: 0.0 specificity: 1.0
+
+test size: 0.1 model: SVM-RBF classification accuracy: 61.00808368996672 sensitivity: 0.0 specificity: 1.0
+'''
