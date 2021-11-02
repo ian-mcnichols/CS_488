@@ -106,8 +106,6 @@ def pines_analysis(R_filepath, display=False):
         ax.legend()
         ax.grid()
         plt.show()
-        
-
         # Displaying LDA
         fig = plt.figure(figsize=[10, 10])
         ax = fig.add_subplot(1,1,1)
@@ -119,8 +117,6 @@ def pines_analysis(R_filepath, display=False):
                         color=color, label=target_name)
         ax.legend()
         ax.grid()
-        plt.show()
-
         plt.show()
 
 
@@ -177,43 +173,111 @@ def iris_analysis(display=False):
         plt.show()
 
 
-def iris_classification():
+def iris_classification(run_pca=True):
     iris = datasets.load_iris()
     X = iris.data
     y = iris.target
-    target_names = iris.target_names
+    plot_data = {}
+    if run_pca:
+        pca = PCA(n_components=2)
+        X = pca.fit_transform(X)
 
     test_sizes = [.1, .2, .3, .4, .5]
-    
     for test_size in test_sizes:
         X_train, X_validation, Y_train, Y_validation = train_test_split(X, y, test_size=test_size,random_state=1,shuffle=True)
-        models = []
-        models.append(('KNN', KNeighborsClassifier()))
-        models.append(('SVM-Poly', SVC(gamma='auto',kernel='poly')))
-        models.append(('SVM-RBF', SVC(gamma='auto',kernel='rbf')))
-        models.append(('NB', GaussianNB()))
+        models = [('KNN', KNeighborsClassifier()), ('SVM-Poly', SVC(gamma='auto', kernel='poly')),
+                  ('SVM-RBF', SVC(gamma='auto', kernel='rbf')), ('NB', GaussianNB())]
         names = []
-        results = []
-        scores = []
-        test_accuracies = []
+        classification_accuracy = []
+        training_accuracy = []
         for name, model in models:
             model.fit(X_train, Y_train)
-            print("accuracy:", model.score(X_validation, Y_validation))
-            test_accuracies.append(model.score(X_validation, Y_validation))
+            classification_accuracy.append(model.score(X_validation, Y_validation)*100)
 
             kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
             cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
-            print(cv_results.)
-            results.append(cv_results)
+            training_accuracy.append(cv_results.mean()*100)
             names.append(name)
+        plot_data[test_size] = [np.mean(training_accuracy), np.mean(classification_accuracy)]
+    print("plot_data:", plot_data)
+    test_sizes = [x*100 for x in test_sizes]
+    training_accuracies = [plot_data[x][0] for x in plot_data]
+    print("Training accuracies:", training_accuracies)
+    classification_accuracies = [plot_data[x][1] for x in plot_data]
+    print("Classification accuracies:", classification_accuracies)
+    plt.scatter(test_sizes,training_accuracies,c='blue',label="Training accuracy")
+    plt.scatter(test_sizes,classification_accuracies,c='green',label="Classification accuracy")
+    plt.xlabel("% test size")
+    plt.ylabel("Average accuracy")
+    if run_pca:
+        plt.title("Supervised Classification with PCA Reduction on IRIS")
+    else:
+        plt.title("Supervised Classification without Dimensionality Reduction on IRIS")
+    plt.legend()
+    plt.show()
+
+
+def pines_classification(R_filepath, run_pca=False):
+    R_file = io.loadmat(R_filepath)
+    gth = np.array(R_file['gth'])
+    X = np.array(R_file['X']).transpose()
+    R_rows = R_file['num_rows']
+    R_cols = R_file['num_cols']
+    R_bands = R_file['num_bands']
+    gth = np.reshape(gth, (int(R_rows)*int(R_cols)))
+    bands, samples = X.shape
+    gth_mat = io.loadmat('data/indian_gth.mat')
+    gth_mat = {i:j for i, j in gth_mat.items() if i[0] != "_"}
+    gt = pd.DataFrame({i: pd.Series(j[0]) for i, j in gth_mat.items()})
+
+    plot_data = {}
+    test_sizes = [.1, .2, .3, .4, .5]
+    for test_size in test_sizes:
+        X_train, X_validation, Y_train, Y_validation = train_test_split(X, gth, test_size=test_size,
+                                                                        random_state=1, shuffle=True)
+        models = [('KNN', KNeighborsClassifier()), ('SVM-Poly', SVC(gamma='auto', kernel='poly')),
+                  ('SVM-RBF', SVC(gamma='auto', kernel='rbf')), ('NB', GaussianNB())]
+        names = []
+        classification_accuracy = []
+        training_accuracy = []
+        for name, model in models:
+            print("Starting model", name)
+            model.fit(X_train, Y_train)
+            classification_score = model.score(X_validation, Y_validation)
+            classification_accuracy.append(classification_score*100)
+
+            kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
+            cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
+            training_accuracy.append(cv_results.mean()*100)
+            names.append(name)
+            print(name, "finished training")
+            print("Classification accuracy:", classification_score*100)
+            print("Training accuracy:", cv_results.mean()*100)
+        plot_data[test_size] = [np.mean(training_accuracy), np.mean(classification_accuracy)]
+    print("plot_data:", plot_data)
+    test_sizes = [x*100 for x in test_sizes]
+    training_accuracies = [plot_data[x][0] for x in plot_data]
+    print("Training accuracies:", training_accuracies)
+    classification_accuracies = [plot_data[x][1] for x in plot_data]
+    print("Classification accuracies:", classification_accuracies)
+    plt.scatter(test_sizes,training_accuracies,c='blue',label="Training accuracy")
+    plt.scatter(test_sizes,classification_accuracies,c='green',label="Classification accuracy")
+    plt.xlabel("% test size")
+    plt.ylabel("Average accuracy")
+    if run_pca:
+        plt.title("Supervised Classification with PCA Reduction on INDIAN PINES")
+    else:
+        plt.title("Supervised Classification without Dimensionality Reduction on INDIAN PINES")
+    plt.legend()
 
 
 def main():
     filepath = "data/indianR.mat"
-
     #iris_analysis(display=False)
     #pines_analysis(filepath, display=True)
-    iris_classification()
+    #iris_classification(run_pca=True)
+    #iris_classification(run_pca=False)
+    pines_classification(filepath, run_pca=False)
     #PCA_(Rdata, Rtruth)
 
 
