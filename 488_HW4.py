@@ -53,7 +53,7 @@ def pines_analysis(R_filepath, display=False):
     x_pca_df = pd.DataFrame(data=X_pca, columns=['PC-' + str(i+1) for i in range(10)])
     X_pca_df = pd.concat([x_pca_df, gt], axis=1)
 
-    # Starting LDA    
+    # Starting LDA
     X = X.transpose()
     lda = LinearDiscriminantAnalysis(n_components=10)
     linear_discriminants = lda.fit(X, np.ravel(gt)).transform(X)
@@ -137,7 +137,7 @@ def iris_analysis(display=False):
     )
     # Plot figures if prompted
     if display:
-        # Show the first 2 PC's 
+        # Show the first 2 PC's
         plt.figure()
         plt.bar([1,2],list(pca.explained_variance_ratio_*100), label='Principal Components', color='b')
         plt.legend()
@@ -172,7 +172,10 @@ def iris_analysis(display=False):
         plt.show()
 
 
-def iris_classification(run_pca=True):
+def iris_classification(run_pca=False, run_lda=True):
+    if run_pca and run_lda:
+        print("Can't run both lda and pca.")
+        return
     # Load IRIS dataset, run PCA, and run combinations of all test sizes and model types
     # Display output to the user's screen
 
@@ -185,8 +188,11 @@ def iris_classification(run_pca=True):
     if run_pca:
         pca = PCA(n_components=2)
         X = pca.fit_transform(X)
+    if run_lda:
+        lda = LinearDiscriminantAnalysis(n_components=2)
+        X = lda.fit(X, y).transform(X)
 
-    test_sizes = [.1, .2, .3, .4, .5]
+    test_sizes = [.9, .8, .7, .6, .5]
     for test_size in test_sizes:
         # Split dataset based on test size
         X_train, X_validation, Y_train, Y_validation = train_test_split(X, y, test_size=test_size,random_state=1,shuffle=True)
@@ -214,15 +220,15 @@ def iris_classification(run_pca=True):
             classification_score = pipeline.score(X_validation, Y_validation)
             classification_accuracy.append(classification_score*100)
             # Calculate and store training accuracy of the model
-            kfold = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
-            cv_results = cross_val_score(model,X_train,Y_train,cv=kfold,scoring='accuracy')
-            training_accuracy.append(cv_results.mean()*100)
+            training_accuracy.append(pipeline.score(X_train, Y_train)*100)
             # Print model information to display
-            data_line = "test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " + str(cv_results.mean()*100) + " classification accuracy: " + str(classification_score*100) 
-            data_line += " sensitivity: " + str(sensitivity) + " specificity: " + str(specificity) + "\n"            
+            data_line = "test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " +\
+                        str(pipeline.score(X_train, Y_train)*100) + " classification accuracy: " +\
+                        str(classification_score*100)
+            data_line += " sensitivity: " + str(sensitivity) + " specificity: " + str(specificity) + "\n"
             print(data_line)
         # Combine all the averages per test size
-        plot_data[test_size] = [np.mean(training_accuracy), np.mean(classification_accuracy)]
+        plot_data[test_size] = [training_accuracy, classification_accuracy]
     # Display average overall accuracy and training accuracy to output for each test size
     training_accuracies = [plot_data[x][0] for x in plot_data]
     print("Training accuracies:", training_accuracies)
@@ -230,7 +236,10 @@ def iris_classification(run_pca=True):
     print("Classification accuracies:", classification_accuracies)
 
 
-def pines_classification(R_filepath, run_pca=False):
+def pines_classification(R_filepath, run_pca=False, run_lda=False):
+    if run_pca and run_lda:
+        print("Can't run both pca and lda")
+        return
     # Runs combinations of model types/test sizes with or without PCA dimensionality reduction on pines dataset
     # Loading in the pines dataset
     R_file = io.loadmat(R_filepath)
@@ -250,14 +259,21 @@ def pines_classification(R_filepath, run_pca=False):
         print("X:", principleComponents.shape)
         print("gth:", gth.shape)
         X = principleComponents
-        print("Running with dimensionality reduction")
+        print("Running with PCA dimensionality reduction")
+    elif run_lda:
+        lda = LinearDiscriminantAnalysis(n_components=10)
+        linear_discriminants = lda.fit(X, np.ravel(gth)).transform(X)
+        X = linear_discriminants
+        print("X:", X.shape)
+        print("gth:", gth.shape)
+        print("Running with LDA reduction")
     else:
         # Display data info
         print("X:", X.shape)
         print("gth:", gth.shape)
         print("Running without dimensionality reduction")
     plot_data = {}
-    test_sizes = [.5, .4, .3, .2, .1]
+    test_sizes = [.9, .8, .7, .6, .5]
     for test_size in test_sizes:
         # Splitting data by test size
         X_train, X_validation, Y_train, Y_validation = train_test_split(X, gth, test_size=test_size,
@@ -288,11 +304,12 @@ def pines_classification(R_filepath, run_pca=False):
             training_accuracy.append(train_score)
             classification_accuracy.append(classification_score*100)
             # Printing model information to output
-            data_line = "test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " + str(train_score*100) + " classification accuracy: " + str(classification_score*100) 
+            data_line = "test size: " + str(test_size) + " model: " + str(name) + " training accuracy: " + str(train_score*100) + " classification accuracy: " + str(classification_score*100)
             data_line += " sensitivity: " + str(sensitivity) + " specificity: " + str(specificity) + "\n"
             print(data_line)
         # Adding all model averages to a dictionary corresponding with test size
-        plot_data[test_size] = [np.mean(training_accuracy), np.mean(classification_accuracy)]
+        # TODO: Fix it from being averages
+        plot_data[test_size] = [training_accuracy, classification_accuracy]
     # Displaying overall accuracies for each test size
     test_sizes = [x*100 for x in test_sizes]
     training_accuracies = [plot_data[x][0] for x in plot_data]
@@ -302,12 +319,13 @@ def pines_classification(R_filepath, run_pca=False):
 
 
 def plot_classification(iris, pines):
-    # Plots the training/overall accuracies of each model at each test-size 
+    # Plots the training/overall accuracies of each model at each test-size
     test_sizes = [.5, .4, .3, .2, .1][::-1]
     if pines:
         # Saved data from PINES classification output (Hard-coded to avoid re-running models)
         # No PCA
-        accuracies = [54.2185865119376, 54.26872770511296, 54.37539632213063, 54.47086801426873, 54.88587731811697][::-1]
+        accuracies = []
+        classification_accuracies = []
         training_accuracies = [56.51636225266362, 56.59532302814111, 56.64367737990079, 56.68995243757431, 56.72233379135398][::-1]
         plt.scatter(test_sizes, accuracies, label="Classification accuracy",c="blue")
         plt.scatter(test_sizes, training_accuracies, label="Training accuracy",c="red")
@@ -329,39 +347,93 @@ def plot_classification(iris, pines):
     if iris:
         # Saved data from IRIS classification output (Hard-coded to avoid re-running models)
         # No PCA
-        training_accuracies = [95.97527472527473, 96.25, 95.31818181818183, 94.72222222222223, 94.50892857142858][::-1]
-        classification_accuracies = [91.66666666666666, 85.83333333333334, 84.44444444444444, 86.25, 90.33333333333334][::-1]
-        plt.scatter(test_sizes, classification_accuracies, label="Classification accuracy",c="blue")
-        plt.scatter(test_sizes, training_accuracies, label="Training accuracy",c="red")
-        plt.xlabel("% test size")
-        plt.ylabel("Average accuracy")
-        plt.title("Supervised Classification without Dimensionality Reduction on IRIS")
-        plt.legend()
-        plt.show()
-        # After PCA
-        training_accuracies = [95.97527472527473, 96.25, 95.31818181818183, 94.72222222222223, 94.50892857142858][::-1]
-        classification_accuracies =[95.0, 85.0, 81.66666666666666, 84.16666666666666, 85.33333333333333][::-1]
-        plt.scatter(test_sizes, classification_accuracies, label="Classification accuracy",c="blue")
-        plt.scatter(test_sizes, training_accuracies, label="Training accuracy",c="red")
-        plt.xlabel("% test size")
-        plt.ylabel("Average Classification Accuracy")
-        plt.title("Supervised Classification with PCA Reduction on IRIS")
-        plt.legend()
-        plt.show()
+        training_accuracies = [[[86.66666666666667, 53.333333333333336, 86.66666666666667, 100.0],
+                               [96.66666666666667, 43.333333333333336, 76.66666666666667, 100.0],
+                               [95.55555555555556, 53.333333333333336, 91.11111111111111, 95.55555555555556],
+                               [96.66666666666667, 51.66666666666667, 95.0, 93.33333333333333],
+                               [94.66666666666667, 66.66666666666666, 94.66666666666667, 93.33333333333333]],
+                               [[80.0, 53.333333333333336, 73.33333333333333, 100.0],
+                                [93.33333333333333, 43.333333333333336, 76.66666666666667, 96.66666666666667],
+                                [91.11111111111111, 51.11111111111111, 77.77777777777779, 86.66666666666667],
+                                [93.33333333333333, 43.333333333333336, 88.33333333333333, 86.66666666666667],
+                                [94.66666666666667, 64.0, 88.0, 88.0]],
+                               [[80.0, 46.666666666666664, 60.0, 93.33333333333333],
+                                [90.0, 66.66666666666666, 76.66666666666667, 96.66666666666667],
+                                [95.55555555555556, 71.11111111111111, 88.88888888888889, 95.55555555555556],
+                                [95.0, 68.33333333333333, 91.66666666666666, 96.66666666666667],
+                                [94.66666666666667, 68.0, 93.33333333333333, 96.0]]]
+        classification_accuracies = [[[91.85185185185185, 54.074074074074076, 88.88888888888889, 94.81481481481482],
+                                     [95.0, 33.33333333333333, 64.16666666666667, 93.33333333333333],
+                                     [97.14285714285714, 56.19047619047619, 93.33333333333333, 96.19047619047619],
+                                     [97.77777777777777, 48.888888888888886, 94.44444444444444, 96.66666666666667],
+                                     [97.33333333333334, 70.66666666666667, 97.33333333333334, 96.0]],
+                                     [[81.48148148148148, 51.11111111111111, 60.0, 91.85185185185185],
+                                      [88.33333333333333, 33.33333333333333, 64.16666666666667, 88.33333333333333],
+                                      [91.42857142857143, 55.23809523809524, 80.0, 97.14285714285714],
+                                      [92.22222222222223, 40.0, 88.88888888888889, 93.33333333333333],
+                                      [94.66666666666667, 65.33333333333333, 88.0, 93.33333333333333]],
+                                     [[97.03703703703704, 46.666666666666664, 65.92592592592592, 97.77777777777777],
+                                      [95.0, 59.166666666666664, 64.16666666666667, 98.33333333333333],
+                                      [97.14285714285714, 63.8095238095238, 96.19047619047619, 99.04761904761905],
+                                      [97.77777777777777, 64.44444444444444, 93.33333333333333, 98.88888888888889],
+                                      [97.33333333333334, 64.0, 94.66666666666667, 100.0]]]
+
+        for i, accuracies in \
+                enumerate(zip(classification_accuracies, training_accuracies)):
+            classification_accuracies_itr = accuracies[0]
+            training_accuracies_itr = accuracies[1]
+            KNN_accuracies = [x[0] for x in classification_accuracies_itr]
+            KNN_train_accuracies = [x[0] for x in training_accuracies_itr]
+            SVM_poly_accuracies = [x[1] for x in classification_accuracies_itr]
+            SVM_poly_train_accuracies = [x[1] for x in training_accuracies_itr]
+            SVM_rbf_accuracies = [x[2] for x in classification_accuracies_itr]
+            SVM_rbf_train_accuracies = [x[2] for x in training_accuracies_itr]
+            GNB_accuracies = [x[3] for x in classification_accuracies_itr]
+            GNB_train_accuracies = [x[3] for x in training_accuracies_itr]
+            plt.plot(test_sizes, KNN_accuracies, label="KNN Classification Accuracies")
+            plt.plot(test_sizes, SVM_poly_accuracies,label="SVM-Poly Classification Accuracies")
+            plt.plot(test_sizes, SVM_rbf_accuracies,label="SVM-rbf Classification Accuracies")
+            plt.plot(test_sizes, GNB_accuracies,label="Gaussian Classification Accuracies")
+            plt.xlabel("% train size")
+            plt.ylabel("Average Classification Accuracies")
+            if i == 0:
+                plt.title("Supervised Classification without Dimensionality Reduction on IRIS")
+            elif i == 1:
+                plt.title("Supervised Classification with PCA Reduction on IRIS")
+            elif i == 2:
+                plt.title("Supervised Classification with LDA Reduction on IRIS")
+            plt.legend()
+            plt.show()
+            plt.figure()
+            plt.plot(test_sizes, GNB_train_accuracies, label="Gaussian Training Accuracies")
+            plt.plot(test_sizes, KNN_train_accuracies, label="KNN Training Accuracies")
+            plt.plot(test_sizes, SVM_poly_train_accuracies, label="SVM-Poly Training Accuracies")
+            plt.plot(test_sizes, SVM_rbf_train_accuracies, label="SVM-rbf Training Accuracies")
+            plt.xlabel("% train size")
+            plt.ylabel("Average Training Accuracies")
+            if i == 0:
+                plt.title("Supervised Classification without Dimensionality Reduction on IRIS")
+            elif i == 1:
+                plt.title("Supervised Classification with PCA Reduction on IRIS")
+            elif i == 2:
+                plt.title("Supervised Classification with LDA Reduction on IRIS")
+            plt.legend()
+            plt.show()
 
 
 def main():
     # Driver for pines and iris data analysis/classification
     filepath = "data/indianR.mat"
-    iris_analysis(display=True)
-    pines_analysis(filepath, display=True)
-    iris_classification(run_pca=True)
-    iris_classification(run_pca=False)
-    pines_classification(filepath, run_pca=False)
-    pines_classification(filepath, run_pca=True)
-    plot_classification(iris=True, pines=False)
+    #iris_analysis(display=True)
+    #pines_analysis(filepath, display=True)
+    #iris_classification(run_pca=True, run_lda=False)
+    #iris_classification(run_pca=False, run_lda=True)
+    #iris_classification(run_pca=False, run_lda=False)
+    pines_classification(filepath, run_pca=False, run_lda=False)
+    pines_classification(filepath, run_pca=True, run_lda=False)
+    pines_classification(filepath, run_pca=False, run_lda=True)
+    #plot_classification(iris=True, pines=False)
 
 
 if __name__ == "__main__":
     main()
-
